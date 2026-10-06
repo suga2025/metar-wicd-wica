@@ -24,7 +24,7 @@
 const STATIONS=[{icao:'WICD',name:'Bandar Udara Cakrabuana Penggung',city:'Cirebon'},{icao:'WICA',name:'Bandar Udara Internasional Jawa Barat (Kertajati)',city:'Majalengka'}];
 const REFRESH=60;
 const $=id=>document.getElementById(id);
-const LOCAL=false;const PROXY_URL='';const px=u=>u;
+const LOCAL=false;const PROXY_URL='https://api.allorigins.win/raw?url=';const px=u=>PROXY_URL+encodeURIComponent(u);
 const AWC='https://aviationweather.gov/api/data/';
 const NOAA='https://tgftp.nws.noaa.gov/data/';
 let left=REFRESH,busy=false;
