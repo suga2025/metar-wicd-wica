@@ -1,34 +1,39 @@
-<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>METAR WICD WICA</title>
-<style>body{font-family:monospace;background:#f8fafc;padding:24px;max-width:800px;margin:auto}h3{text-align:center}.card{background:#fff;padding:16px;border-radius:12px;box-shadow:0 2px 8px #0001;margin-bottom:12px}pre{white-space:pre-wrap;background:#f1f5f9;padding:10px;border-radius:8px}small{color:#64748b}</style>
-</head><body>
-<h3>METAR WICD - WICA - <span id="t"></span></h3>
-<div id="wicd" class="card">Loading WICD...</div>
-<div id="wica" class="card">Loading WICA...</div>
-<script>
-const PROXY="https://stamet-proxy.obs-jatiwangi.workers.dev/?ids=";
-const FALLBACK_WICD="METAR WICD 060630Z 10005KT 8000 FEW020 SCT100 32/24 Q1008 NOSIG";
-const FALLBACK_WICA="METAR WICA 060700Z 12004KT 8000 FEW022 BKN100 32/25 Q1008 NOSIG";
-async function get(id, fallback){
-  const el=document.getElementById(id.toLowerCase());
-  try{
-    const r=await fetch(PROXY+id);
-    const txt=(await r.text()).trim();
-    const data=txt?JSON.parse(txt):[];
-    if(data.length>0){
-      const raw=data[0].rawOb||data[0].raw;
-      localStorage.setItem('last_'+id, raw);
-      localStorage.setItem('last_t_'+id, new Date().toISOString());
-      el.innerHTML=`<b>${id}:</b><pre>${raw}</pre><small>LIVE - obs.jatiwangi - ${new Date().toLocaleTimeString('id-ID')}</small>`;
-      return;
-    }
-    throw "empty";
-  }catch(e){
-    const last=localStorage.getItem('last_'+id)||fallback;
-    const lt=localStorage.getItem('last_t_'+id);
-    el.innerHTML=`<b>${id}:</b><pre>${last}</pre><small style="color:#d97706;font-weight:bold">LAST REPORT ${lt?`(disimpan ${new Date(lt).toLocaleString('id-ID')})`:''} - API internasional kosong sore (bandara tutup)</small>`;
-  }
+// WORKER FINAL - BMKG + AviationWeather + Proxy Gambar
+const BMKG_BASE='https://web-aviation.bmkg.go.id/web/';
+const PAGES={metar:BMKG_BASE+'metar_speci.php',taf:BMKG_BASE+'taf.php'};
+const UA={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0.0.0 Safari/537.36'};
+const CORS={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'*','Access-Control-Max-Age':'86400'};
+
+function iso(d){return d.toISOString().slice(0,16);}
+async function getSession(kind){
+  const r=await fetch(PAGES[kind],{headers:UA});
+  const html=await r.text();
+  const tokenMatch=html.match(/name=["']_token["'][^>]*value=["']([^"']+)["']/i);
+  const setCookie=r.headers.get('set-cookie')||'';
+  return {token: tokenMatch?tokenMatch[1]:'', cookie: setCookie.split(';')[0]};
 }
-function load(){document.getElementById('t').textContent=new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+" WIB"; get('WICD',FALLBACK_WICD); get('WICA',FALLBACK_WICA);}
-load();
-</script></body></html>
+async function fetchBMKG(kind,icao,hours){
+  const sess=await getSession(kind);
+  const now=new Date();
+  const from=new Date(now.getTime()-3600000*hours);
+  const to=new Date(now.getTime()+43200000);
+  const params=new URLSearchParams({_token:sess.token||'', stasiun:icao, from:iso(from), to:iso(to)});
+  if(kind==='metar'){params.append('metar','SA'); params.append('speci','SP');}
+  const res=await fetch(PAGES[kind],{method:'POST',headers:{...UA,'Content-Type':'application/x-www-form-urlencoded','Referer':PAGES[kind],'Origin':'https://web-aviation.bmkg.go.id','X-Requested-With':'XMLHttpRequest',Cookie:sess.cookie},body:params});
+  return await res.text();
+}
+export default{
+ async fetch(req){
+  const url=new URL(req.url);
+  if(req.method==='OPTIONS') return new Response('',{headers:CORS});
+  // 1. Proxy gambar / umum
+  const target=url.searchParams.get('url');
+  if(target){const r=await fetch(target,{headers:UA}); return new Response(await r.arrayBuffer(),{headers:{...CORS,'Content-Type':r.headers.get('content-type')||'text/plain'}});}
+  // 2. Proxy aviationweather lama (fallback)
+  const ids=url.searchParams.get('ids');
+  if(ids){const r=await fetch(`https://aviationweather.gov/api/data/metar?ids=${ids}&format=json`,{headers:UA}); return new Response(await r.text(),{headers:{...CORS,'Content-Type':'application/json'}});}
+  // 3. Proxy BMKG
+  const icao=url.searchParams.get('icao')||'WICD', kind=url.searchParams.get('kind')||'metar', hours=url.searchParams.get('hours')||'24';
+  try{const html=await fetchBMKG(kind,icao,parseInt(hours)); return new Response(html,{headers:{...CORS,'Content-Type':'text/html'}});}catch(e){return new Response('Error: '+e.message,{status:500,headers:CORS});}
+ }
+}
