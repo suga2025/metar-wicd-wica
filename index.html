@@ -1,51 +1,45 @@
-<!doctype html>
-<html lang="id">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>METAR, SPECI & TAF - WICD WICA</title>
-<style>*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui;background:#f6f7f9;color:#111827}
-header{padding:28px;max-width:1240px;margin:auto}h1{margin:0;font-size:28px}
-.sub{color:#6b7280;margin-top:6px;font-size:14px}.bar{display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap}
-.dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block}
-.pill{background:#fff;border:1px solid #e5e7eb;padding:6px 12px;border-radius:20px;font-size:12px}
-.btn{margin-left:auto;background:#fff;border:1px solid #e5e7eb;padding:8px 14px;border-radius:20px;font-weight:600;cursor:pointer}
-.grid{max-width:1240px;margin:18px auto;display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:0 24px}
-@media(max-width:900px){.grid{grid-template-columns:1fr}}.card{background:#fff;border-radius:14px;border:1px solid #e5e7eb;overflow:hidden}
-.card-head{padding:18px 20px 0;display:flex;justify-content:space-between}
-.card-head h2{margin:0;font-size:22px}.loc{font-size:12px;color:#6b7280}
-.badge{padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;color:#fff}
-.VFR{background:#16a34a}.MVFR{background:#2563eb}.IFR{background:#dc2626}
-.card-body{padding:16px 20px 20px}.sec-title{font-size:12px;font-weight:700;margin:0 0 14px}
-.meta{font-size:12px;color:#6b7280;margin-bottom:10px}.raw{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px;font-family:monospace;font-size:12px;white-space:pre-wrap}
-.info-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px}
-.ibox{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
-.ilabel{font-size:10px;color:#6b7280;text-transform:uppercase}.ival{font-weight:600;font-size:13px;margin-top:4px}
-.link{margin-top:12px;font-size:12px;color:#6b7280;cursor:pointer}
-</style>
-</head>
-<body>
-<header>
-<h1>METAR, SPECI & TAF</h1>
-<div class="sub">Data cuaca observasi penerbangan terkini — Bandar Udara Cakrabuana Penggung, Cirebon (WICD) dan Bandar Udara Kertajati, Majalengka (WICA)</div>
-<div class="bar"><div><span class="dot"></span> <span id="updateInfo">Memuat...</span></div><div class="pill" id="utcWib">-- UTC · -- WIB</div><div class="pill">Auto-refresh <span id="count">60</span>s</div><button class="btn" onclick="load()">Perbarui sekarang</button></div>
-</header>
-<div class="grid">
-<div class="card"><div class="card-head"><div><h2>WICD</h2><div class="loc">Bandar Udara Cakrabuana Penggung<br>Cirebon</div></div><span class="badge MVFR" id="badge-wicd">-</span></div>
-<div class="card-body"><div class="sec-title">METAR — LAPORAN CUACA RUTIN</div><div class="meta" id="obs-wicd">-</div><div class="raw" id="raw-wicd">Memuat...</div><div class="info-grid" id="grid-wicd"></div><div class="link" onclick="toggleHist('wicd')">▶ Riwayat laporan</div><div id="hist-wicd" style="display:none;margin-top:8px" class="raw"></div></div>
-<div class="card-body" style="border-top:1px solid #e5e7eb;background:#fcfcfd"><div class="sec-title">SPECI — LAPORAN CUACA KHUSUS</div><div class="meta" id="speci-meta-wicd">-</div><div class="raw" id="speci-wicd">-</div></div></div>
-<div class="card"><div class="card-head"><div><h2>WICA</h2><div class="loc">Bandar Udara Internasional Jawa Barat (Kertajati)<br>Majalengka</div></div><span class="badge VFR" id="badge-wica">-</span></div>
-<div class="card-body"><div class="sec-title">METAR — LAPORAN CUACA RUTIN</div><div class="meta" id="obs-wica">-</div><div class="raw" id="raw-wica">Memuat...</div><div class="info-grid" id="grid-wica"></div><div class="link" onclick="toggleHist('wica')">▶ Riwayat laporan</div><div id="hist-wica" style="display:none;margin-top:8px" class="raw"></div></div>
-<div class="card-body" style="border-top:1px solid #e5e7eb;background:#fcfcfd"><div class="sec-title">SPECI — LAPORAN CUACA KHUSUS</div><div class="meta" id="speci-meta-wica">-</div><div class="raw" id="speci-wica">-</div></div></div>
-</div>
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>METAR WICD WICA</title>
+<style>body{font-family:monospace;padding:20px;max-width:800px;margin:auto;background:#f8fafc} .card{background:white;padding:16px;border-radius:12px;box-shadow:0 2px 8px #0001;margin-bottom:12px} .nil{color:#999} .ok{color:#16a34a;font-weight:bold}</style>
+</head><body>
+<h2>METAR WICD - WICA <span id="time"></span></h2>
+<div id="wicd" class="card">Loading WICD...</div>
+<div id="wica" class="card">Loading WICA...</div>
 <script>
-const PROXY_METAR='https://stamet-proxy.obs-jatiwangi.workers.dev/?ids=WICD,WICA';
-function parseMetar(m){if(!m)return null;return{raw:m.rawOb||'',wdir:m.wdir||'VRB',wspd:m.wspd||0,wgst:m.wgst?'/G'+m.wgst:'',visib:m.visib||'',cover:m.cover||'',clouds:m.clouds||[],temp:m.temp,dewp:m.dewpt,altim:m.altim,qnh:m.altim?Math.round(m.altim*0.3386):'-',fltCat:m.fltCat||'VFR',obsTime:m.obsTime}}
-function fmtWIB(ts){if(!ts)return{utc:'-',wib:'-'};const d=new Date(ts*1000);const utc=d.getUTCDate().toString().padStart(2,'0')+' '+d.toLocaleString('en-GB',{month:'short',timeZone:'UTC'})+' '+d.getUTCHours().toString().padStart(2,'0')+':'+d.getUTCMinutes().toString().padStart(2,'0')+' UTC';const wib=new Date(ts*1000+7*3600000);const wibStr=wib.getUTCHours().toString().padStart(2,'0')+':'+wib.getUTCMinutes().toString().padStart(2,'0')+' WIB';return{utc,wib:wibStr}}
-function renderCard(id,dataList){const mets=dataList.filter(d=>(d.metarType||'METAR')==='METAR').sort((a,b)=>b.obsTime-a.obsTime);const specis=dataList.filter(d=>(d.metarType||'')==='SPECI').sort((a,b)=>b.obsTime-a.obsTime);const latest=mets[0];const rawEl=document.getElementById('raw-'+id.toLowerCase());const obsEl=document.getElementById('obs-'+id.toLowerCase());const badgeEl=document.getElementById('badge-'+id.toLowerCase());const gridEl=document.getElementById('grid-'+id.toLowerCase());if(!latest){rawEl.textContent='Tidak ada METAR dalam 6 jam terakhir';obsEl.textContent='-';badgeEl.textContent='NIL';gridEl.innerHTML='';return;}const p=parseMetar(latest);const t=fmtWIB(latest.obsTime);rawEl.textContent=p.raw;obsEl.textContent=`Observasi ${t.utc} (${t.wib}) · ${Math.floor((Date.now()/1000-latest.obsTime)/60)} menit lalu`;badgeEl.textContent=p.fltCat;badgeEl.className='badge '+p.fltCat;gridEl.innerHTML=`<div class="ibox"><div class="ilabel">Angin</div><div class="ival">${p.wdir}° / ${p.wspd} kt ${p.wgst}<br>${(p.wspd*1.852).toFixed(0)} km/j</div></div><div class="ibox"><div class="ilabel">Jarak pandang</div><div class="ival">${p.visib? (p.visib*1.609).toFixed(0)+' km':''}<br>${p.visib+' sm'}</div></div><div class="ibox"><div class="ilabel">Awan</div><div class="ival">${p.clouds.map(c=>`${c.cover} ${c.base||''} ft`).join(', ')||p.cover}</div></div><div class="ibox"><div class="ilabel">Suhu / Embun</div><div class="ival">${p.temp}° / ${p.dewp}° C</div></div><div class="ibox"><div class="ilabel">QNH</div><div class="ival">${p.qnh} hPa</div></div>`;document.getElementById('hist-'+id.toLowerCase()).textContent=mets.slice(0,6).map(x=>x.rawOb).join('\n');const speciRaw=document.getElementById('speci-'+id.toLowerCase());const speciMeta=document.getElementById('speci-meta-'+id.toLowerCase());if(specis.length){const ls=specis[0];const tp=fmtWIB(ls.obsTime);speciMeta.textContent=`Dikeluarkan ${tp.utc} (${tp.wib})`;speciRaw.textContent=ls.rawOb;}else{speciMeta.textContent='Tidak ada SPECI dalam 6 jam terakhir';speciRaw.textContent='No SPECI';}}
-async function load(){document.getElementById('updateInfo').textContent='Memperbarui...';try{const r=await fetch(PROXY_METAR,{cache:'no-store'});const txt=await r.text();let data;try{data=JSON.parse(txt)}catch{data=[]}if(!Array.isArray(data))data=[data];const grouped={WICD:[],WICA:[]};data.forEach(d=>{if(d.icaoId&&grouped[d.icaoId])grouped[d.icaoId].push(d)});if(!grouped.WICD)grouped.WICD=[];if(!grouped.WICA)grouped.WICA=[];renderCard('WICD',grouped.WICD);renderCard('WICA',grouped.WICA);const now=new Date();const utcStr=now.getUTCHours().toString().padStart(2,'0')+':'+now.getUTCMinutes().toString().padStart(2,'0')+' UTC';const wib=new Date(now.getTime()+7*3600000);const wibStr=wib.getUTCHours().toString().padStart(2,'0')+':'+wib.getUTCMinutes().toString().padStart(2,'0')+' WIB';document.getElementById('utcWib').textContent=utcStr+' · '+wibStr;document.getElementById('updateInfo').textContent=`Diperbarui ${wibStr} · WICD: ${grouped.WICD.length?'BMKG':'NIL'} · WICA: ${grouped.WICA.length?'BMKG':'NIL'}`;}catch(e){document.getElementById('updateInfo').textContent='Gagal: '+e.message}}
-function toggleHist(id){const el=document.getElementById('hist-'+id);el.style.display=el.style.display==='none'?'block':'none';}
-load();let c=60;setInterval(()=>{c--;document.getElementById('count').textContent=c;if(c<=0){c=60;load();}},1000);
-</script>
-</body>
-</html>
+const PROXY="https://stamet-proxy.obs-jatiwangi.workers.dev/?ids=WICD,WICA";
+const HOURS=12;
+async function load(){
+  document.getElementById('time').textContent=" - "+new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+" WIB";
+  try{
+    const r=await fetch(PROXY);
+    const data=await r.json();
+    // kalau API kasih array
+    if(Array.isArray(data) && data.length>0){
+      data.forEach(o=>{
+        const id=o.icaoId||o.stationId;
+        const raw=o.rawOb||o.raw||JSON.stringify(o);
+        localStorage.setItem('last_'+id, raw);
+        localStorage.setItem('last_time_'+id, new Date().toISOString());
+        document.getElementById(id.toLowerCase()).innerHTML=`<div class="ok">${id}: ${raw}</div><small>by obs.jatiwangi - ${new Date().toLocaleTimeString('id-ID')} WIB</small>`;
+      });
+    }
+    // tampilkan yang kesimpan kalau API kosong (NO DATA)
+    ['WICD','WICA'].forEach(id=>{
+      const el=document.getElementById(id.toLowerCase());
+      if(el.textContent.includes('Loading') || el.textContent.includes('NIL')){
+        const last=localStorage.getItem('last_'+id);
+        const lt=localStorage.getItem('last_time_'+id);
+        if(last){
+          el.innerHTML=`<div class="ok">${id}: ${last}</div><small class="nil">LAST REPORT (disimpan ${lt?new Date(lt).toLocaleString('id-ID'):''}) - bandara sudah tutup, data internasional kosong</small>`;
+        }else{
+          el.innerHTML=`<div class="nil">${id}: NIL (belum ada laporan hari ini tersimpan)</div>`;
+        }
+      }
+    });
+  }catch(e){
+    document.getElementById('wicd').textContent='Error: '+e.message;
+  }
+}
+load(); setInterval(load, 5*60*1000);
+</script></body></html>
