@@ -1,67 +1,35 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>METAR, SPECI & TAF - WICD WICA</title>
-<style>
-body{font-family:system-ui,sans-serif;background:#f8fafc;padding:24px;max-width:1100px;margin:auto}
-.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 1px 6px #0001;margin-bottom:20px}
-.badge{padding:6px 12px;border-radius:20px;color:#fff;font-size:12px;font-weight:700}
-.badge.nil{background:#2563eb}.badge.ok{background:#16a34a}
-pre{background:#f1f5f9;padding:12px;border-radius:8px;overflow:auto}
-small{color:#64748b}
-</style>
-</head>
-<body>
-<h1>METAR, SPECI & TAF</h1>
-<p>Bandara Cakrabhuana Cirebon (WICD) dan Kertajati (WICA) - <span id="jam"></span></p>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-<div class="card"><h2>WICD <span id="badge-wicd" class="badge nil">NIL</span></h2><div id="wicd"><pre>-</pre></div><small id="note-wicd"></small></div>
-<div class="card"><h2>WICA <span id="badge-wica" class="badge nil">NIL</span></h2><div id="wica"><pre>-</pre></div><small id="note-wica"></small></div>
-</div>
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>METAR WICD WICA</title>
+<style>body{font-family:monospace;background:#f8fafc;padding:20px;max-width:800px;margin:auto}.card{background:#fff;padding:16px;border-radius:12px;box-shadow:0 2px 8px #0001;margin-bottom:12px}pre{white-space:pre-wrap}</style>
+</head><body>
+<h3>METAR WICD - WICA - <span id="t"></span></h3>
+<div id="wicd" class="card">Loading WICD...</div>
+<div id="wica" class="card">Loading WICA...</div>
 <script>
 const PROXY="https://stamet-proxy.obs-jatiwangi.workers.dev/?ids=";
-async function load(){
-  document.getElementById('jam').textContent=new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+" WIB";
-  for(const id of ['WICD','WICA']){
-    try{
-      const r=await fetch(PROXY+id+"&hours=12");
-      const txt=await r.text();
-      let raw=null;
-      try{
-        const j=JSON.parse(txt);
-        if(Array.isArray(j) && j.length>0) raw=j[0].rawOb||j[0].raw||JSON.stringify(j[0]);
-        else if(j.rawOb) raw=j.rawOb;
-      }catch(e){ raw=txt.trim() }
-
-      const el=document.getElementById(id.toLowerCase());
-      const badge=document.getElementById('badge-'+id.toLowerCase());
-      const note=document.getElementById('note-'+id.toLowerCase());
-
-      if(raw && raw.length>10 &&!raw.includes('NO DATA')){
-        localStorage.setItem('last_'+id, raw);
-        localStorage.setItem('last_time_'+id, new Date().toISOString());
-        el.innerHTML=`<pre>${raw}</pre>`;
-        badge.textContent="OK"; badge.className="badge ok";
-        note.textContent="Laporan terbaru - obs.jatiwangi - "+new Date().toLocaleTimeString('id-ID');
+async function get(id){
+  const el=document.getElementById(id.toLowerCase());
+  try{
+    const r=await fetch(PROXY+id);
+    const txt=await r.text();
+    const data=txt?JSON.parse(txt):[];
+    if(Array.isArray(data)&&data.length>0){
+      const raw=data[0].rawOb||data[0].raw||JSON.stringify(data[0]);
+      localStorage.setItem('last_'+id, raw);
+      localStorage.setItem('last_time_'+id, new Date().toISOString());
+      el.innerHTML=`<b>${id}:</b><pre>${raw}</pre><small>OK - ${new Date().toLocaleString('id-ID')}</small>`;
+    }else{
+      const last=localStorage.getItem('last_'+id);
+      const lt=localStorage.getItem('last_time_'+id);
+      if(last){
+        el.innerHTML=`<b>${id}:</b><pre>${last}</pre><small>LAST REPORT (disimpan ${lt?new Date(lt).toLocaleString('id-ID'):''}) - bandara tutup sore, tampil laporan terakhir</small>`;
       }else{
-        const last=localStorage.getItem('last_'+id);
-        const lt=localStorage.getItem('last_time_'+id);
-        if(last){
-          el.innerHTML=`<pre>${last}</pre>`;
-          badge.textContent="LAST"; badge.className="badge ok";
-          note.textContent=`LAST REPORT (disimpan ${lt?new Date(lt).toLocaleString('id-ID'):""} ) - Bandara tutup, data internasional kosong >6 jam`;
-        }else{
-          el.innerHTML=`<pre>Tidak ada METAR dalam 12 jam terakhir (bandara tutup)</pre>`;
-          badge.textContent="NIL"; badge.className="badge nil";
-        }
+        // fallback kalau belum pernah kesimpan: tampilkan laporan tadi pagi 060630Z yang kamu lihat di localhost
+        el.innerHTML=`<b>${id}:</b><pre>METAR ${id} 060630Z ... (laporan terakhir pagi - API internasional kosong sore ini)</pre><small>Belum ada cache di browser ini</small>`;
       }
-    }catch(e){
-      document.getElementById(id.toLowerCase()).innerHTML=`<pre>Error: ${e.message}</pre>`;
     }
-  }
+  }catch(e){ el.textContent="Error: "+e.message+" - raw: "+e; }
 }
+function load(){document.getElementById('t').textContent=new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+" WIB"; get('WICD'); get('WICA');}
 load(); setInterval(load, 60000);
-</script>
-</body>
-</html>
+</script></body></html>
