@@ -53,17 +53,15 @@ details pre{margin-top:8px;font-size:11px}
   </div>
   <div class="grid" id="grid"></div>
   <p class="foot">
-    METAR: laporan cuaca rutin, diterbitkan setiap jam oleh observer BMKG. SPECI: laporan khusus saat terjadi perubahan cuaca signifikan (ditampilkan hingga 6 jam, dan ditandai bila sudah digantikan METAR berikutnya). TAF: prakiraan cuaca bandara; yang ditampilkan adalah TAF yang sedang berlaku, termasuk amendment (AMD) jika ada.
-    Kategori penerbangan (VFR/MVFR/IFR/LIFR) dihitung dari jarak pandang dan tinggi dasar awan BKN/OVC pada METAR terakhir, sebagai gambaran cepat dan bukan pengganti data resmi.
+    METAR: laporan cuaca rutin, diterbitkan setiap jam oleh observer BMKG. SPECI: laporan khusus saat terjadi perubahan cuaca signifikan. TAF: prakiraan cuaca bandara; yang ditampilkan adalah TAF yang sedang berlaku, termasuk amendment (AMD) jika ada.
   </p>
 </div>
-
 <script>
 const STATIONS=[
   {icao:'WICD',name:'Bandar Udara Cakrabuana Penggung',city:'Cirebon'},
   {icao:'WICA',name:'Bandar Udara Internasional Jawa Barat (Kertajati)',city:'Majalengka'}
 ];
-const REFRESH=60; // detik
+const REFRESH=60;
 const $=id=>document.getElementById(id);
 const WORKER='https://stamet-proxy.obs-jatiwangi.workers.dev';
 const px=u=>WORKER+'?url='+encodeURIComponent(u);
@@ -72,13 +70,11 @@ const NOAA='https://tgftp.nws.noaa.gov/data/';
 let left=REFRESH, busy=false;
 const pad=n=>String(n).padStart(2,'0');
 const q=(i,k)=>$(i+'-'+k);
-
-// ---------- Tampilan ----------
 $('grid').innerHTML=STATIONS.map(s=>`
 <article class="station">
   <div class="sh">
     <div><div class="icao">${s.icao}</div><div class="nm">${s.name}<br>${s.city}</div></div>
-    <div class="sr"><span class="cat" id="${s.icao}-cat" hidden></span><span class="dot load" id="${s.icao}-dot" title="Status data"></span></div>
+    <div class="sr"><span class="cat" id="${s.icao}-cat" hidden></span><span class="dot load" id="${s.icao}-dot"></span></div>
   </div>
   <section class="card"><h3>METAR — LAPORAN CUACA RUTIN</h3><div class="body">
     <p class="meta" id="${s.icao}-metar-meta"></p><pre id="${s.icao}-metar">Memuat…</pre>
@@ -95,8 +91,6 @@ $('grid').innerHTML=STATIONS.map(s=>`
   </div></section>
   <details id="${s.icao}-diag" hidden><summary>Rincian sumber yang gagal</summary><pre id="${s.icao}-diag-text"></pre></details>
 </article>`).join('');
-
-// ---------- Waktu ----------
 function obsDate(ddhhmm){
   const n=new Date(), d=+ddhhmm.slice(0,2), h=+ddhhmm.slice(2,4), m=+ddhhmm.slice(4,6);
   let t=new Date(Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),d,h,m));
@@ -120,12 +114,9 @@ function tick(){
   const n=new Date();
   $('clock').textContent=`${utc(n)} · ${wib(n)}`;
 }
-
-// ---------- Pengambilan data ----------
 const clean=raw=>raw.replace(/<script[\s\S]*?<\/script>/gi,' ')
- .replace(/<\/?(?:td|th|tr|br|p|div|li|pre|table|tbody|thead)\b[^>]*>/gi,'\n').replace(/<[^>]+>/g,' ')
- .replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\\r|\\n/g,'\n').replace(/[ \t]+/g,' ');
-
+.replace(/<\/?(?:td|th|tr|br|p|div|li|pre|table|tbody|thead)\b[^>]*>/gi,'\n').replace(/<[^>]+>/g,' ')
+.replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\\r|\\n/g,'\n').replace(/[ \t]+/g,' ');
 function extract(raw,icao){
   const text=clean(raw);
   const re=new RegExp('(?:\\b(METAR|SPECI)\\s+(?:COR\\s+)?)?\\b'+icao+'\\s+(\\d{6})Z[^=\\n]*','g');
@@ -141,7 +132,6 @@ function extract(raw,icao){
   }
   return out.sort((a,b)=>b.time-a.time);
 }
-
 function vdate(ref,d,h){
   let t=new Date(Date.UTC(ref.getUTCFullYear(),ref.getUTCMonth(),d,h,0));
   if(t<ref-864e5*2) t=new Date(Date.UTC(ref.getUTCFullYear(),ref.getUTCMonth()+1,d,h,0));
@@ -168,12 +158,10 @@ async function tryEach(tries,errs,pick,icao){
     try{
       const r=await fetch(local?url:px(url),{cache:'no-store'});
       const t=await r.text();
-      if(!r.ok) throw new Error('HTTP '+r.status+' — '+t.replace(/\s+/g,' ').slice(0,100));
+      if(!r.ok) throw new Error('HTTP '+r.status);
       const v=pick(t);
       if(v&&(!Array.isArray(v)||v.length)) return {v,src:name};
-      const cnt=w=>(t.match(new RegExp(w,'g'))||[]).length;
-      const i=t.indexOf(icao), at=i>=0?t.slice(Math.max(0,i-30),i+120):clean(t).replace(/\s+/g,' ').trim().slice(0,150);
-      throw new Error(`balasan ${t.length} karakter, tidak ada laporan terbaca (${icao}: ${cnt(icao)}x, METAR: ${cnt('METAR')}x, TAF: ${cnt('TAF')}x) · cuplikan: ${at.replace(/\s+/g,' ')}`);
+      throw new Error('tidak ada laporan');
     }catch(e){ errs.push(name+': '+e.message); }
   }
   throw new Error('semua sumber gagal');
@@ -189,10 +177,8 @@ const getTaf=(i,errs)=>tryEach([
   ['NOAA',`${NOAA}forecasts/taf/stations/${i}.TXT`]
 ],errs,t=>{
   const all=extractTaf(t,i), fresh=all.filter(x=>Date.now()-x.issued<72*36e5);
-  if(all.length&&!fresh.length){const d=all[0].issued;throw new Error(`TAF usang, yang terbaru terbit ${pad(d.getUTCDate())}/${pad(d.getUTCMonth()+1)} ${utc(d)}`)}
-  return fresh;
+  return fresh.length?fresh:all;
 },i);
-
 function decode(s){
   const c=[]; const add=(k,v)=>c.push(`<div class="chip"><b>${k}</b><span>${v}</span></div>`);
   let m;
@@ -201,7 +187,6 @@ function decode(s){
   }
   if(/\bCAVOK\b/.test(s)) add('Jarak pandang','≥ 10 km (CAVOK)');
   else if(m=s.match(/\s(\d{4})\s/)){const v=+m[1];add('Jarak pandang',v>=9999?'≥ 10 km':(v>=1000?(v/1000)+' km':v+' m'))}
-  if(m=s.match(/\s((?:[-+]|VC)?(?:MI|BC|DR|BL|SH|TS|FZ|PR)?(?:DZ|RA|SN|SG|PL|GR|GS|BR|FG|FU|VA|DU|SA|HZ|SQ|FC|SS|DS)+)\s/)) add('Cuaca',m[1]);
   const cl=[...s.matchAll(/\b(FEW|SCT|BKN|OVC|VV)(\d{3})(CB|TCU)?\b/g)].map(x=>`${x[1]} ${+x[2]*100} ft${x[3]?' '+x[3]:''}`);
   if(/\b(NSC|SKC|NCD)\b/.test(s)) add('Awan','Tidak ada awan signifikan');
   else if(cl.length) add('Awan',cl.join('<br>'));
@@ -219,18 +204,17 @@ function flightCat(s){
   if(vis<8000||ceil<3000)return 'MVFR';
   return 'VFR';
 }
-
 function render(i,list){
   const lm=list.find(x=>x.type==='METAR'), ls=list.find(x=>x.type==='SPECI'&&Date.now()-x.time<6*36e5);
   const cat=q(i,'cat');
   if(lm){
     q(i,'metar').textContent=lm.text; setMeta(q(i,'metar-meta'),lm.text,'Observasi'); q(i,'chips').innerHTML=decode(lm.text);
-    const c=flightCat(lm.text); cat.textContent=c; cat.className='cat '+c; cat.hidden=false; cat.title='Kategori penerbangan (perkiraan)';
+    const c=flightCat(lm.text); cat.textContent=c; cat.className='cat '+c; cat.hidden=false;
   }else{
     q(i,'metar').textContent='Belum ada METAR dalam 24 jam terakhir.'; q(i,'metar-meta').textContent=''; q(i,'chips').innerHTML=''; cat.hidden=true;
   }
   if(ls){ q(i,'speci').textContent=ls.text; setMeta(q(i,'speci-meta'),ls.text,'Dikeluarkan',lm&&lm.time>ls.time?'sudah digantikan METAR '+utc(lm.time):'yang terbaru'); }
-  else{ q(i,'speci').textContent='No SPECI'; q(i,'speci-meta').textContent='Tidak ada SPECI dalam 6 jam terakhir'; q(i,'speci-meta').className='meta'; }
+  else{ q(i,'speci').textContent='No SPECI'; q(i,'speci-meta').textContent='Tidak ada SPECI dalam 6 jam terakhir'; }
   const rest=list.slice(0,8);
   q(i,'hist-wrap').hidden=rest.length<2; q(i,'hist').textContent=rest.map(x=>x.text).join('\n');
 }
@@ -239,28 +223,25 @@ function renderTaf(i,list){
   const now=Date.now();
   const valid=list.find(x=>x.from&&x.from<=now&&now<x.to);
   const main=valid||list[0];
+  if(!main){q(i,'taf').textContent='TAF belum tersedia'; return;}
   const next=list.find(x=>x!==main&&x.from&&x.from>now&&x.issued>=main.issued);
   const expired=!valid&&main.to&&now>=main.to;
   q(i,'taf').textContent=main.text;
   const state=valid?'masih berlaku':expired?'sudah kedaluwarsa':'belum berlaku';
   setMeta(q(i,'taf-meta'),main.text,'Diterbitkan',(main.from?`berlaku ${fmtV(main.from)} – ${fmtV(main.to)} · `:'')+state);
-  if(expired) q(i,'taf-meta').className='meta stale';
-  q(i,'taf-next-wrap').hidden=!next; if(next) q(i,'taf-next').textContent=next.text+'\n(mulai berlaku '+fmtV(next.from)+')';
+  q(i,'taf-next-wrap').hidden=!next; if(next) q(i,'taf-next').textContent=next.text;
   const rest=list.filter(x=>x!==main&&x!==next).slice(0,5);
   q(i,'taf-hist-wrap').hidden=!rest.length; q(i,'taf-hist').textContent=rest.map(x=>x.text).join('\n\n');
 }
 async function loadStation(st){
   const i=st.icao, errs=[]; let ok=true, msrc='', tsrc='';
   q(i,'dot').className='dot load';
-  ['metar','taf'].forEach(k=>q(i,k).classList.remove('err'));
   try{ const r=await getReports(i,errs); msrc=r.src; render(i,r.v); }
-  catch(e){ ok=false; q(i,'metar').textContent='Gagal memuat METAR.\n'+errs.join('\n'); q(i,'metar').classList.add('err'); q(i,'speci').textContent='-'; q(i,'chips').innerHTML=''; q(i,'cat').hidden=true; }
+  catch(e){ ok=false; q(i,'metar').textContent='Gagal memuat METAR.\n'+errs.join('\n'); }
   const n0=errs.length;
   try{ const r=await getTaf(i,errs); tsrc=r.src; renderTaf(i,r.v); }
-  catch(e){ q(i,'taf').textContent='TAF belum tersedia dari sumber mana pun.\n'+errs.slice(n0).join('\n'); q(i,'taf').classList.add('err'); q(i,'taf-meta').textContent=''; q(i,'taf-next-wrap').hidden=true; q(i,'taf-hist-wrap').hidden=true; }
+  catch(e){ q(i,'taf').textContent='TAF belum tersedia.\n'+errs.slice(n0).join('\n'); }
   q(i,'dot').className='dot '+(ok?'ok':'err');
-  q(i,'dot').title=ok?`METAR: ${msrc}${tsrc?' · TAF: '+tsrc:''}`:'Gagal memuat';
-  q(i,'diag').hidden=!errs.length; q(i,'diag-text').textContent=errs.join('\n');
   return {i,ok,msrc};
 }
 async function load(){
@@ -269,18 +250,16 @@ async function load(){
   const res=await Promise.all(STATIONS.map(loadStation));
   const n=new Date(), ts=`${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
   const bad=res.filter(r=>!r.ok).map(r=>r.i);
-  $('dot').className='dot '+(bad.length===0?'ok':bad.length===res.length?'err':'load');
+  $('dot').className='dot '+(bad.length===0?'ok':'err');
   $('status').textContent=bad.length?`Diperbarui ${ts} · gagal: ${bad.join(', ')}`:`Diperbarui ${ts} · ${res.map(r=>r.i+': '+r.msrc).join(' · ')}`;
   $('btn').disabled=false; busy=false;
 }
-
 $('btn').onclick=load;
 setInterval(()=>{
   tick();
   if(document.hidden)return;
   if(--left<=0) load(); else $('next').textContent='Auto-refresh '+left+' d';
 },1000);
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden && left<REFRESH-10) load(); });
 tick(); load();
 </script>
 </body>
