@@ -4,7 +4,7 @@
 <h1>METAR, SPECI & TAF</h1><p style="color:#666;font-size:13px">Bandara Cakrabuana Cirebon (WICD) dan Kertajati Majalengka (WICA) - Real-time NOAA</p>
 <div id="out">Memuat data...</div>
 <script>
-const PROXY='https://api.allorigins.win/raw?url=';
+const PROXY='https://corsproxy.io/?';
 const px=u=>PROXY+encodeURIComponent(u+'?t='+Date.now());
 async function getTxt(url){
   const r=await fetch(px(url),{cache:'no-store'});
